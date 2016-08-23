@@ -1,0 +1,22 @@
+Notes:
+1. Currently the buildebpackage.sh tool is only used to build thinkstack debian package
+based on the mirrantis debian package
+2. For new added component in thinkstack, cannot support
+3. only support ubuntu, no gurrante for other os
+
+How to use it?
+1. copy the mirrantis mos-update main repository into same directory where tool locate
+please keep one version for each component.
+2. git clone the thinkstack code into ThinkStackU into same directory where tool lcoate
+3. ./builddebpackage.sh [version] [component(s) | all ]
+
+directory arch?
+build-->thinkstack debian package directory,optional, if not exists, tool will create it
+ThinkStackU--> thinkstack source code, required
+stage --> for build usage, if not exists, optional, tool will create it
+main --> mirrantis debian packages directory, required
+builddebpackage.sh --> build tool
+scripts ---> build script for each component
+
+
+
