@@ -23,7 +23,7 @@ copy_source_code $component
 copy_config_files $component
 
 # s5: copy ml2 config file
-copy_ml2_config $component
+#copy_ml2_config $component
 
 # s6: generate md5sums file
 gen_md5sums_file $component
