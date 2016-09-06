@@ -57,7 +57,7 @@ unpack() {
 		dirname=`echo $debfile | awk -F "/" '{print $5}' | awk -F "." '{print $1}' | awk -F "_" '{print $1}'`
     	stagedir=./stage/$component/$dirname
     	rm -rf $stagedir
-    	mkdir $stagedir
+    	mkdir -p $stagedir
 
     	# unpack mirrantis debian package to get the data and control files
     	dpkg-deb -R $debfile $stagedir
@@ -67,7 +67,7 @@ unpack() {
 	if [[ $component = "horizon" ]]; then
 		stagedir=./stage/horizon/python-openstack-auth
 		rm -rf $stagedir
-		mkdir $stagedir
+		mkdir -p $stagedir
 
 		debfile=`find ./main -name "*openstack-auth*.deb"`
 		dpkg-deb -R $debfile $stagedir
