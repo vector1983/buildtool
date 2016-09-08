@@ -6,10 +6,10 @@
 # help information
 display_help() {
 	cat << eof
-Usage: $0 {component_name}
+    Usage: $0 {version} {component_name(s)|all}
 
 The component name should be one of the following items:
-ceilometer|cinder|glance|horizon|keystone|neutron|nova|python-ceilometerclient| \
+ceilometer|cinder|glance|horizon|keystone|neutron|nova|django_openstack_auth|python-ceilometerclient| \
 pythone-cinderclient|python-glanceclient|python-keystoneclient|python-neutronclient| \
 python-novaclient|python-swiftclient|all
 eof
@@ -23,15 +23,105 @@ log_error_and_exit() {
 
 # check the required directories
 check_dirs() {
-    [[ -d ./main ]] || log_error_and_exit "please copy the mirrantis update main directory in the same directory firstly"
- 	[[ -d ./ThinkStackU ]] || log_error_and_exit "please git clone the ThinkStackU project firstly"
+ 	[[ -d ./ThinkStackU ]] || mkdir ./ThinkStackU
 }
 
 # prepare the build/stage directory
 prepare() {
  	component=$1
  	[[ -d "./build/$1" ]] || mkdir -p "./build/$1"
- 	[[ -d "./stage/$1" ]] || mkdir -p "./stage/$1"
+ 	#[[ -d "./stage/$1" ]] || mkdir -p "./stage/$1"
+}
+
+# copy component files to stage dir
+copy_component_files() {
+    component=$1
+    [[ -d "./ThinkStackU/$component" ]] || log_error_and_exit "please git clone the project $component into ThinkStackU firstly!"
+    [[ -d "./stage" ]] || mkdir ./stage
+    [[ -d "./stage/$component" ]] && rm -rf ./stage/$component
+    cp -rf ./ThinkStackU/$component ./stage/
+}
+
+restore_deb_dir () {
+    workdir=$1
+    distdir=$2
+    docdir=$3
+
+    [[ -d $docdir ]] || mkdir -p $docdir
+    [[ -d $distdir ]] || mkdir -p $distdir
+
+    # gzip the changelog.debian and changelog, copy them to doc dir
+    [[ -f ${workdir}/changelog ]] && gzip ${workdir}/changelog && mv ${workdir}/changelog.gz $docdir
+    [[ -f ${workdir}/ChangeLog ]] && gzip ${workdir}/ChangeLog && mv ${workdir}/ChangeLog.gz $docdir
+    [[ -f ${workdir}/changelog.Debian ]] && gzip ${workdir}/changelog.Debian && mv ${workdir}/changelog.Debian.gz $docdir
+    [[ -f ${workdir}/copyright ]] && mv ${workdir}/copyright $docdir
+
+    # handle apport and locale for nova
+    [[ -d ${workdir}/apport ]] && mv ${workdir}/apport ${workdir}/usr/share
+    [[ -d ${workdir}/locale ]] && mv ${workdir}/locale ${workdir}/usr/share
+
+    # move the $component and egg_info into dist-packages
+    # #*-: handle the python-ceilometerclient and get ceilometerclient
+    if [[ $component = "django_openstack_auth" ]]; then
+        mv ${workdir}/openstack_auth $distdir
+    else
+        mv ${workdir}/${component#*-} $distdir
+    fi
+    mv ${workdir}/*.egg-info $distdir
+
+    # modify the directory mode to 755
+    find ./$distdir -type d | xargs chmod 755
+
+    # modify the files mode to 644
+    find ./$distdir -type f | xargs chmod 644
+
+    # modify the shell script mode to 755
+    for shfile in `find ./$distdir -type f -name "*.sh"` 
+    do
+        chmod 755 $shfile
+    done
+}
+# prepare the python-${component} packaging dir
+prepare_python_component() {
+    component=$1
+    # client include python
+    if [[ $component =~ "python" ]];then
+        workdir=./stage/${component}/${component}
+        docdir=${workdir}/usr/share/doc/${component}
+    else
+        workdir=./stage/${component}/python-${component}
+        docdir=${workdir}/usr/share/doc/python-${component}
+    fi
+    distdir=${workdir}/usr/lib/python2.7/dist-packages
+
+    restore_deb_dir $workdir $distdir $docdir
+}
+
+prepare_horizon_component() {
+    workdir=./stage/horizon/python-django-horizon
+    distdir=${workdir}/usr/lib/python2.7/dist-packages
+    docdir=${workdir}/usr/share/doc/python-django-horizon
+
+    restore_deb_dir $workdir $distdir $docdir
+
+}
+
+prepare_dashboard_component() {
+    workdir=./stage/horizon/openstack-dashboard
+    mv ${workdir}/openstack_dashboard ${workdir}/usr/share/openstack-dashboard
+}
+
+prepare_horizon() {
+    prepare_horizon_component
+    prepare_dashboard_component
+}
+
+prepare_openstack_auth() {
+    workdir=./stage/django_openstack_auth/python-openstack-auth
+    distdir=${workdir}/usr/lib/python2.7/dist-packages/
+    docdir=${workdir}/usr/share/doc/python-openstack-auth
+
+    restore_deb_dir $workdir $distdir $docdir
 }
 
 # get the first char of component
@@ -144,7 +234,7 @@ gen_md5sums_file() {
 
 	component=$1
 	currentpath=`pwd`
-	for dirname in `ls ./stage/$component`
+	for dirname in `ls ./stage/$component | grep -v bugchange`
 	do
 		cd ./stage/$component/$dirname
 		if [[ -d ./DEBIAN ]] && [[ -d ./usr ]]; then
@@ -197,7 +287,7 @@ build_deb() {
 	version=$2
 
 	# build the debian package
-	for dir in `ls ./stage/$component`
+	for dir in `ls ./stage/$component | grep -v bugchange`
 	do
 		debianname="${dir}_${version}_all.deb"
 		fakeroot dpkg -b ./stage/$component/$dir ./build/$component/$debianname
@@ -208,50 +298,39 @@ build_deb() {
 build() {
 	component=$1
 	version=$2
+    
+    # s1: prepare dir
+    prepare $component
 
-	# s1: prepare build/stage
-	prepare $component
+    # s2: copy files to stage
+    copy_component_files $component
 
-	# s2: unpack mirrantis debian package to get the control and data file
-	unpack $component
+    # s3: prepare deb dir
+    case $component in
+        horizon)
+            prepare_horizon
+            ;;
+        django_openstack_auth)
+            prepare_openstack_auth
+            ;;
+        *)
+            prepare_python_component
+    esac
 
-	# s3: copy source code to override
-	copy_source_code $component
-
-	# s4: copy policy file
-	copy_policy_file $component
-
-	# s5: generate md5sums file
+	# s4: generate md5sums file
 	gen_md5sums_file $component
 
-	# s6: modify control file
+	# s5: modify control file
 	modify_control_file  $component $version
 
-	# s7: build debian package
+	# s6: build debian package
 	build_deb $component $version
 }
 
-
-# copy source code for openstack dashboard(special handling for horizon)
-copy_dashboard_code() {
-	sourcedir=./ThinkStackU/horizon/openstack_dashboard
-	stagedir=./stage/horizon/openstack-dashboard/usr/share/openstack-dashboard
-	if [[ -d $sourcedir ]] && [[ -d $stagedir ]]; then
-		 cp -rf $sourcedir $stagedir/ >/dev/null 2>&1 #ignore the error which syslink cannot be overrided(js/css syslink file)
-	fi
-}
-
-# special handling for neutron, need to copy ml2 config file
-copy_ml2_config() {
-    cp ./ThinkStackU/neutron/etc/neutron/plugins/ml2/* ./stage/neutron/neutron-plugin-ml2/etc/neutron/plugins/ml2/
-}
-
-# prepare nova
-# unpack nova
-# copy_source_code nova
-# copy_policy_file nova
-# gen_md5sums_file nova
-# #modify_control_version nova 2016.1.1-1~u14.04+tos19999
-# modify_control_file nova 2016.1.1-1~u14.04+tos19999
-# build_deb nova 2016.1.1-1~u14.04+tos19999
-
+#prepare $1
+#copy_component_files $1
+#prepare_python_component $1
+#gen_md5sums_file $1
+#modify_control_file $1 2016.1.1~u14.04+tos199999
+#build_deb $1 2016.1.1~u14.04+tos199999
+#build $1 2016.1.1~u14.04+tos199999

@@ -18,7 +18,7 @@ components=$@
 echo -e "\033[42;37m**************deian package build start********************\033[0m"
 # build debian package for each component
 for component in $components; do
-	#echo $component
+	echo "----start to build debian packages for ${component}----"
 	case $component in
 		ceilometer )
 			bash ./scripts/build_ceilometer.sh ceilometer $version
@@ -41,6 +41,9 @@ for component in $components; do
 		nova )
 			bash ./scripts/build_nova.sh nova $version
 			;;
+        django_openstack_auth)
+            bash ./scripts/build_django_openstack_auth.sh django_openstack_auth $version
+            ;;
 		python-ceilometerclient )
 			bash ./scripts/build_ceilometerclient.sh python-ceilometerclient $version
 			;;

@@ -12,22 +12,19 @@ check_dirs
 # s1: prepare build/stage
 prepare $component
 
-# s2: unpack mirrantis debian package to get the control and data file
-unpack $component
+# s2: copy files to stage
+copy_component_files $component
 
-# s3: copy source code to override
-copy_source_code $component
+# s3: prepare deb dir
+prepare_python_component $component
 
-# s4: copy config file
-copy_config_files $component
-
-# s5: generate md5sums file
+# s4: generate md5sums file
 gen_md5sums_file $component
 
-# s6: modify control file
+# s5: modify control file
 modify_control_file $component $version
 
-# s7: build debian package
+# s6: build debian package
 build_deb $component $version
 
 

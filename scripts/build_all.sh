@@ -12,6 +12,7 @@ bash ./scripts/build_horizon.sh horizon $version
 bash ./scripts/build_keystone.sh keystone $version
 bash ./scripts/build_neutron.sh neutron $version
 bash ./scripts/build_nova.sh nova $version
+bash ./scripts/build_django_openstack_auth.sh django_openstack_auth $version
 bash ./scripts/build_ceilometerclient.sh python-ceilometerclient $version
 bash ./scripts/build_cinderclient.sh python-cinderclient $version
 bash ./scripts/build_glanceclient.sh python-glanceclient $version
