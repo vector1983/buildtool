@@ -40,6 +40,8 @@ copy_component_files() {
     [[ -d "./stage" ]] || mkdir ./stage
     [[ -d "./stage/$component" ]] && rm -rf ./stage/$component
     cp -rf ./ThinkStackU/$component ./stage/
+    # remove .ignore file
+    find ./stage -name ".ignore" -exec rm {} \;
 }
 
 restore_deb_dir () {
